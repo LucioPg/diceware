@@ -246,6 +246,79 @@ impl<'a> WordList<'a> {
 ///     }
 /// };
 /// ```
+/// Transforms a slice of words into a CamelCase string.
+///
+/// Alphabetic words are capitalized (first letter uppercase, rest lowercase)
+/// and concatenated without spaces. Numeric words (e.g. `"109"`) are left
+/// as-is.
+///
+/// # Example
+///
+/// ```rust
+/// use diceware::to_camel_case;
+///
+/// let result = to_camel_case(&["hello", "world", "42"]);
+/// assert_eq!(result, "HelloWorld42");
+/// ```
+pub fn to_camel_case(words: &[&str]) -> String {
+    words
+        .iter()
+        .map(|s| {
+            if s.chars().all(|c| c.is_numeric()) {
+                s.to_string()
+            } else {
+                let mut c = s.chars();
+                match c.next() {
+                    Some(f) => f.to_uppercase().collect::<String>() + &c.as_str().to_lowercase(),
+                    None => String::new(),
+                }
+            }
+        })
+        .collect()
+}
+
+/// Makes a passphrase given a [`config`](./struct.Config.html).
+///
+/// # Example
+///
+/// ```rust
+/// use diceware::{Config, EmbeddedList};
+///
+/// // Make an 8-word passphrase from the embedded English list.
+/// let config = Config::new()
+///     .with_embedded(EmbeddedList::EN)
+///     .with_words(8);
+/// let passphrase = diceware::make_passphrase(config).unwrap();
+/// ```
+///
+/// If the list can generate an error, like when you use an external list or
+/// if you don't trust the embedded lists, you can match them:
+///
+/// ```rust
+/// use diceware::{Config, EmbeddedList, Error};
+///
+/// let filename = "words.txt";
+/// let config = Config::new().with_filename(filename).with_words(8);
+/// match diceware::make_passphrase(config) {
+///     Ok(passphrase) => println!("{}", passphrase),
+///
+///     Err(err) => {
+///         match err {
+///             // IO errors can occur when using an external word list.
+///             Error::IO(e) => eprintln!("Error: {}: {}", filename, e),
+///
+///             // Word list errors can occur if the word list is invalid, i.e.
+///             // its length is different than 7776 words or it contains
+///             // duplicates.
+///             Error::WordList(e) => eprintln!("Error: {}", e),
+///
+///             // No words errors can occur if the number of words to generate
+///             // is 0.
+///             Error::NoWords => eprintln!("Error: {}", err),
+///         }
+///     }
+/// };
+/// ```
 pub fn make_passphrase(config: Config<'_>) -> Result<String> {
     if config.words < 1 {
         return Err(Error::NoWords);
@@ -269,7 +342,7 @@ pub fn make_passphrase(config: Config<'_>) -> Result<String> {
 
     if config.with_special_char {
         let chars: Vec<char> =
-            "~!#$%^&*()-=+[]\\{}:;\"'<>?/0123456789".chars().collect();
+            "~!#$%^&*()-=+[]\\{}:;\"'<>?/".chars().collect();
 
         // NOTE(unwrap): chars is defined above and not empty.
         #[allow(clippy::unwrap_used)]
@@ -289,8 +362,11 @@ pub fn make_passphrase(config: Config<'_>) -> Result<String> {
         word.insert(*idx, *c);
         words[word_idx] = &word;
     }
-
-    let passphrase = words.join(" ");
+    let passphrase: String = if config.with_camel_case {
+        to_camel_case(&words)
+    } else {
+        words.join(" ")
+    };
 
     Ok(passphrase)
 }
@@ -369,6 +445,106 @@ mod tests {
         }
     }
 
+    /// Special chars (without digits).
+    fn special_chars() -> Vec<char> {
+        "~!#$%^&*()-=+[]\\{}:;\"'<>?/".chars().collect()
+    }
+
+    #[test]
+    fn to_camel_case_capitalizes_alphabetic_words() {
+        assert_eq!(to_camel_case(&["hello", "world"]), "HelloWorld");
+        assert_eq!(to_camel_case(&["a"]), "A");
+        assert_eq!(to_camel_case(&["test"]), "Test");
+    }
+
+    #[test]
+    fn to_camel_case_leaves_numeric_words_unchanged() {
+        assert_eq!(to_camel_case(&["42"]), "42");
+        assert_eq!(to_camel_case(&["0", "999"]), "0999");
+        assert_eq!(to_camel_case(&["hello", "42", "world"]), "Hello42World");
+    }
+
+    #[test]
+    fn to_camel_case_returns_empty_for_empty_input() {
+        assert_eq!(to_camel_case(&[]), "");
+    }
+
+    #[test]
+    fn to_camel_case_lowercases_rest_of_word() {
+        assert_eq!(to_camel_case(&["hELLO", "wORLD"]), "HelloWorld");
+    }
+
+    proptest! {
+        #[test]
+        fn to_camel_case_produces_no_spaces(ref list in arb_list()) {
+            let word_list = embedded_list(list);
+            // Pick a random subset of words
+            let indices: Vec<usize> = (0..word_list.len()).collect();
+            let mut rng = rand::rngs::OsRng;
+            let n = rng.gen_range(1..20usize);
+            let words: Vec<&str> = (0..n)
+                .map(|_| word_list[rng.gen_range(0..word_list.len())])
+                .collect();
+
+            let result = to_camel_case(&words);
+            prop_assert!(!result.contains(' '));
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn to_camel_case_is_idempotent_on_word_list(ref list in arb_list()) {
+            let word_list = embedded_list(list);
+            // Every word in the list, when transformed, is deterministic
+            for &w in word_list {
+                let first = to_camel_case(&[w]);
+                let second = to_camel_case(&[w]);
+                assert_eq!(first, second, "non-deterministic for '{}'", w);
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn makes_a_passphrase_with_camel_case(ref list in arb_list(), n in 1..50usize) {
+            let config = Config::new()
+                .with_embedded(list.clone())
+                .with_words(n)
+                .with_camel_case(true);
+            let result = make_passphrase(config);
+
+            prop_assert!(result.is_ok());
+            prop_assert!(!result.unwrap().contains(' '));
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn makes_a_passphrase_with_camel_case_and_special_char(
+            ref list in arb_list(),
+            n in 1..50usize
+        ) {
+            let chars = special_chars();
+
+            let config = Config::new()
+                .with_embedded(list.clone())
+                .with_words(n)
+                .with_camel_case(true)
+                .with_special_chars(true);
+            let result = make_passphrase(config);
+
+            prop_assert!(result.is_ok());
+
+            let passphrase = result.unwrap();
+            prop_assert!(!passphrase.contains(' '));
+
+            // At least one special char must be present (words like "it's"
+            // may already contain one, so we check >= 1 not == 1)
+            let special_count = passphrase.chars().filter(|c| chars.contains(c)).count();
+            prop_assert!(special_count >= 1);
+        }
+    }
+
     proptest! {
         #[test]
         fn makes_a_passphrase_with_special_char(
@@ -376,6 +552,7 @@ mod tests {
             n in 1..50usize
         ) {
             let word_list = embedded_list(list);
+            let chars = special_chars();
 
             let config = Config::new()
                 .with_embedded(list.clone())
@@ -394,9 +571,6 @@ mod tests {
             prop_assert_eq!(not_in_wordlist.len(), 1);
 
             let word_with_char = not_in_wordlist[0];
-            let chars: Vec<char> = "~!#$%^&*()-=+[]\\{}:;\"'<>?/0123456789"
-                .chars()
-                .collect();
 
             assert!(word_with_char.char_indices().any(|(i, c)| {
                 if chars.contains(&c) {
