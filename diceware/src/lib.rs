@@ -479,7 +479,6 @@ mod tests {
         fn to_camel_case_produces_no_spaces(ref list in arb_list()) {
             let word_list = embedded_list(list);
             // Pick a random subset of words
-            let indices: Vec<usize> = (0..word_list.len()).collect();
             let mut rng = rand::rngs::OsRng;
             let n = rng.gen_range(1..20usize);
             let words: Vec<&str> = (0..n)
