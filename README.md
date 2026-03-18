@@ -94,13 +94,18 @@ use diceware::{Config, EmbeddedList, Error};
 
 // First, generate a config. You can generate one with an embedded list,
 // here the English one with 8 words and without a special character:
-let config = Config::with_embedded(EmbeddedList::EN, 8, false);
+let config = Config::new()
+    .with_embedded(EmbeddedList::EN)
+    .with_words(8);
 
 // Alternatively, you can generate a config using an external word list. For
 // instance, to generate 6 words from the file `list.txt` with an additional
 // special character:
 let filename = "list.txt";
-let config = Config::with_filename(filename, 8, true);
+let config = Config::new()
+    .with_filename(filename)
+    .with_words(8)
+    .with_special_chars(true);
 
 // Then, try to generate the passphrase:
 match diceware::make_passphrase(config) {

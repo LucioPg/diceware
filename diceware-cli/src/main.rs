@@ -46,26 +46,43 @@ struct Cli {
     /// Use the French embedded word list.
     #[clap(long = "fr", group = "word_list")]
     french: bool,
+    /// Use the Italian embedded word list.
+    #[clap(long = "it", group = "word_list")]
+    italian: bool,
     /// Add a special character to the passphrase.
-    #[clap(long, short = 's')]
+    #[clap(long, short = 's', default_value = "false",)]
     with_special_char: bool,
+    /// Use CamelCase for the passphrase.
+    #[clap(long, short = 'c', default_value = "false",)]
+    with_camel_case: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
 
     let config = if let Some(ref filename) = cli.word_file {
-        Config::with_filename(filename, cli.words, cli.with_special_char)
+        Config::new()
+            .with_filename(filename)
+            .with_words(cli.words)
+            .with_special_chars(cli.with_special_char)
+            .with_camel_case(cli.with_camel_case)
+
     } else {
         let list = if cli.english {
             EmbeddedList::EN
         } else if cli.french {
             EmbeddedList::FR
+        } else if cli.italian {
+            EmbeddedList::IT
         } else {
             EmbeddedList::EN
         };
 
-        Config::with_embedded(list, cli.words, cli.with_special_char)
+        Config::new()
+            .with_embedded(list)
+            .with_words(cli.words)
+            .with_special_chars(cli.with_special_char)
+            .with_camel_case(cli.with_camel_case)
     };
 
     match diceware::make_passphrase(config) {

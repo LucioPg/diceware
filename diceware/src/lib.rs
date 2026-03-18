@@ -45,6 +45,7 @@ pub struct Config<'a> {
     word_list: WordList<'a>,
     words: usize,
     with_special_char: bool,
+    with_camel_case: bool
 }
 
 /// A word list.
@@ -65,9 +66,63 @@ pub enum EmbeddedList {
     /// To avoid encoding or accessibility problems, `Église` has been replaced
     /// by `Eglise` in the list.
     FR,
+    /// Italian word list from [Tarin Gamberini](https://www.taringamberini.com/it/diceware_it_IT/lista-di-parole-diceware-in-italiano/)'s
+    IT
 }
 
 impl<'a> Config<'a> {
+    /// Creates a configuration with defaults.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use diceware::Config;
+    ///
+    /// // Create a configuration to generate 6 words without special chars and not in camel case
+    /// // using the embedded English word list:
+    /// let config = Config::new();
+    /// ```
+    pub fn new() -> Config<'a> {
+        Config {
+            word_list: WordList::Embedded(EmbeddedList::EN),
+            words: 6_usize,
+            with_special_char: false,
+            with_camel_case: false
+        }
+    }
+    /// Creates a configuration with camel case.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use diceware::Config;
+    ///
+    /// // Create a configuration to generate 6 words with camel case
+    /// // using the embedded English word list:
+    /// let config = Config::new()
+    ///     .with_camel_case(true);
+    /// ```
+    pub fn with_camel_case(mut self, enabled:bool) -> Config<'a> {
+        self.with_camel_case = enabled;
+        self
+    }
+
+    /// Creates a configuration with special chars.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use diceware::Config;
+    ///
+    /// // Create a configuration to generate 6 words without special chars and not in camel case
+    /// // using the embedded English word list:
+    /// let config = Config::new()
+    ///     .with_special_chars(true);
+    /// ```
+    pub fn with_special_chars(mut self, enabled:bool) -> Config<'a> {
+        self.with_special_char = enabled;
+        self
+    }
     /// Creates a configuration using an external word list.
     ///
     /// # Example
@@ -77,19 +132,15 @@ impl<'a> Config<'a> {
     ///
     /// // Create a configuration to generate 8 words with a special char,
     /// // using the word list in words.txt:
-    /// let config = Config::with_filename("words.txt", 8, true);
+    /// let config = Config::new().with_filename("words.txt");
     /// ```
     pub fn with_filename(
+        mut self,
         filename: &'a str,
-        words: usize,
-        with_special_char: bool,
     ) -> Config<'a> {
-        Config {
-            word_list: WordList::File(filename),
-            words,
-            with_special_char,
+            self.word_list =  WordList::File(filename);
+            self
         }
-    }
 
     /// Creates a configuration using an embedded word list.
     ///
@@ -100,18 +151,33 @@ impl<'a> Config<'a> {
     ///
     /// // Create a configuration to generate 6 words without a special char,
     /// // using the embedded French word list:
-    /// let config = Config::with_embedded(EmbeddedList::FR, 6, false);
+    /// let config = Config::new().with_embedded(EmbeddedList::FR);
     /// ```
     pub fn with_embedded(
+        mut self,
         list: EmbeddedList,
-        words: usize,
-        with_special_char: bool,
     ) -> Config<'a> {
-        Config {
-            word_list: WordList::Embedded(list),
-            words,
-            with_special_char,
-        }
+            self.word_list = WordList::Embedded(list);
+            self
+
+    }
+    /// Creates a configuration using a specific number of words.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use diceware::{Config, EmbeddedList};
+    ///
+    /// // Create a configuration to generate 6 words without a special char,
+    /// // using the embedded French word list:
+    /// let config = Config::new().with_words(8);
+    /// ```
+    pub fn with_words(
+        mut self,
+        words: usize,
+    ) -> Config<'a> {
+        self.words = words;
+        self
     }
 }
 
@@ -146,7 +212,9 @@ impl<'a> WordList<'a> {
 /// use diceware::{Config, EmbeddedList};
 ///
 /// // Make an 8-word passphrase from the embedded English list.
-/// let config = Config::with_embedded(EmbeddedList::EN, 8, false);
+/// let config = Config::new()
+///     .with_embedded(EmbeddedList::EN)
+///     .with_words(8);
 /// let passphrase = diceware::make_passphrase(config).unwrap();
 /// ```
 ///
@@ -157,7 +225,7 @@ impl<'a> WordList<'a> {
 /// use diceware::{Config, EmbeddedList, Error};
 ///
 /// let filename = "words.txt";
-/// let config = Config::with_filename(filename, 8, false);
+/// let config = Config::new().with_filename(filename).with_words(8);
 /// match diceware::make_passphrase(config) {
 ///     Ok(passphrase) => println!("{}", passphrase),
 ///
@@ -253,6 +321,7 @@ fn embedded_list(list: &EmbeddedList) -> &[&str; 7776] {
     match list {
         EmbeddedList::EN => &embedded::EN,
         EmbeddedList::FR => &embedded::FR,
+        EmbeddedList::IT => &embedded::IT
     }
 }
 
@@ -265,12 +334,15 @@ mod tests {
 
     /// Arbitrary embedded word list generator.
     fn arb_list() -> BoxedStrategy<EmbeddedList> {
-        prop_oneof![Just(EmbeddedList::EN), Just(EmbeddedList::FR)].boxed()
+        prop_oneof![Just(EmbeddedList::EN), Just(EmbeddedList::FR), Just(EmbeddedList::IT)].boxed()
     }
 
     #[test]
     fn returns_an_error_if_number_of_words_is_zero() {
-        let config = Config::with_embedded(EmbeddedList::FR, 0, false);
+        // let config = Config::with_embedded(EmbeddedList::FR, 0, false);
+        let config = Config::new()
+            .with_embedded(EmbeddedList::FR)
+            .with_words(0);
         let result = make_passphrase(config);
 
         assert!(result.is_err());
@@ -282,7 +354,9 @@ mod tests {
         fn makes_a_passphrase(ref list in arb_list(), n in 1..50usize) {
             let word_list = embedded_list(list);
 
-            let config = Config::with_embedded(list.clone(), n, false);
+            let config = Config::new()
+                .with_embedded(list.clone())
+                .with_words(n);
             let result = make_passphrase(config);
 
             prop_assert!(result.is_ok());
@@ -303,7 +377,10 @@ mod tests {
         ) {
             let word_list = embedded_list(list);
 
-            let config = Config::with_embedded(list.clone(), n, true);
+            let config = Config::new()
+                .with_embedded(list.clone())
+                .with_words(n)
+                .with_special_chars(true);
             let result = make_passphrase(config);
 
             prop_assert!(result.is_ok());

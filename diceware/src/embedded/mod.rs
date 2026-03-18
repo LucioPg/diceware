@@ -16,6 +16,7 @@
 
 pub use self::english::WORD_LIST as EN;
 pub use self::french::WORD_LIST as FR;
-
+pub use self::italian::WORD_LIST as IT;
 mod english;
 mod french;
+mod italian;
