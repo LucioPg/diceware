@@ -2,15 +2,31 @@
 
 A Diceware passphrase generator.
 
+This is a fork of [ejpcmac/diceware](https://github.com/ejpcmac/diceware).
+
 ## About
 
 [Diceware](http://world.std.com/~reinhold/diceware.html) is a method by Arnold
 G. Reinhold for generating passphrases from a dice and a word list.
 
-Although you should not trust your computer’s pseudo-random number generator for
+Although you should not trust your computer's pseudo-random number generator for
 generating strong passphrases, it is sometimes convenient and acceptable to
 generate passphrases that are easy to remember, yet less secure than a true
 Diceware passphrase.
+
+## Differences from upstream
+
+This fork introduces the following changes compared to the original project:
+
+* **Refactored API** — the configuration now uses a builder pattern instead
+  of positional constructor arguments.
+* **Italian word list** — an embedded Italian word list from
+  [Tarin Gamberini](https://www.taringamberini.com/it/diceware_it_IT/lista-di-parole-diceware-in-italiano/)
+  is now available via `EmbeddedList::IT`.
+* **CamelCase output** — passphrases can be generated in CamelCase (each word
+  capitalized and concatenated without spaces) using `with_camel_case(true)`.
+* **Special characters without digits** — the special character set no longer
+  includes digits (`0-9`), only punctuation and symbols.
 
 ## Features
 
@@ -19,13 +35,15 @@ word list, with an optional special character inserted at any position in any
 word. This differs from the dice version, where the special character can be
 inserted only in the six first characters of the six first words.
 
-This implementation embeds two word lists:
+This implementation embeds three word lists:
 
 * the original Diceware list,
 * the French word list from
     [Matthieu Weber](http://weber.fi.eu.org/index.shtml.en#projects), with
-    `Église` changed to `Eglise` to avoid encoding and keyboard accessibility
+    `Eglise` changed to `Eglise` to avoid encoding and keyboard accessibility
     issues.
+* the Italian word list from
+    [Tarin Gamberini](https://www.taringamberini.com/it/diceware_it_IT/lista-di-parole-diceware-in-italiano/).
 
 In addition to these lists, you can use any other list from a text file
 featuring a word by line. A word list **must** contain exactly 7776 unique
@@ -71,6 +89,27 @@ $ diceware --fr 8
 jarret papa cv asti brin coron rente don
 ```
 
+To use the embedded Italian word list, use `--it`:
+
+```sh
+$ diceware --it 8
+casa metodo raggio dentro tipo documento valore studio
+```
+
+To generate a passphrase in CamelCase, use the `-c` switch:
+
+```sh
+$ diceware -c 6
+CasaMetodoRaggioDentroTipoDocumento
+```
+
+You can combine options, for example CamelCase with a special character:
+
+```sh
+$ diceware -c -s 6
+CasaMetodo>RaggioDentroTipoDocumento
+```
+
 You can also use any external word list:
 
 ```sh
@@ -107,6 +146,12 @@ let config = Config::new()
     .with_words(8)
     .with_special_chars(true);
 
+// Or generate a CamelCase passphrase from the Italian list:
+let config = Config::new()
+    .with_embedded(EmbeddedList::IT)
+    .with_words(6)
+    .with_camel_case(true);
+
 // Then, try to generate the passphrase:
 match diceware::make_passphrase(config) {
     // The happy path: you get your passphrase.
@@ -133,6 +178,8 @@ match diceware::make_passphrase(config) {
 
 ## License
 
-Copyright © 2018, 2022 Jean-Philippe Cugnet
+Copyright (C) 2018, 2022 Jean-Philippe Cugnet
+Copyright (C) 2026 LucioPg
+Copyright (C) 2007, ..., 2019 Tarin Gamberini <http://www.taringamberini.com> (Italian word list)
 
 This project is licensed under the [GNU General Public License 3.0](LICENSE).

@@ -1,7 +1,7 @@
 [package]
 name = "diceware"
-version = "1.0.2"
-authors = ["Jean-Philippe Cugnet <jean-philippe@cugnet.eu>"]
+version = "2.0.0"
+authors = ["Jean-Philippe Cugnet <jean-philippe@cugnet.eu>", "LucioPg <ldc-productions@proton.me>"]
 edition = "2021"
 license = "GPL-3.0-only"
 description = "A Diceware passphrase generator."
