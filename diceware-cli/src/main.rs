@@ -50,10 +50,10 @@ struct Cli {
     #[clap(long = "it", group = "word_list")]
     italian: bool,
     /// Add a special character to the passphrase.
-    #[clap(long, short = 's', default_value = "false",)]
+    #[clap(long, short = 's', action = clap::ArgAction::SetTrue)]
     with_special_char: bool,
     /// Use CamelCase for the passphrase.
-    #[clap(long, short = 'c', default_value = "false",)]
+    #[clap(long, short = 'c', action = clap::ArgAction::SetTrue)]
     with_camel_case: bool,
 }
 
